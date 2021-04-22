@@ -1,0 +1,1788 @@
+
+
+<!DOCTYPE html>
+<html>
+
+<head><meta charset="utf-8"></head>
+<link rel="stylesheet" href="style.css" />
+<script language="JavaScript" src=dataview.min.js></script> 
+<script language="JavaScript" src=jsziptools.min.js></script> 
+<script type="text/javascript" src="tsort.js"></script>
+<script language="JavaScript" src=b64.js></script> 
+
+<script>
+techs=[0,0,0,0,0];
+techcnt=0;
+ae={};
+root=0;
+_out=0;			//出力用
+_menu=0;
+_mm=0;
+readcnt=0;		//file読み込み用カウンタ
+select=0;
+sorter=0;
+extData=0;
+filename="";
+cx=2;
+cy=28;
+
+//cx=0;
+//cy=0;
+
+gheader=[];
+gv={
+	c:0,			//カウンタ
+	n:0,			//初期index
+	x:0,			//初期x
+	y:0,			//初期y
+	p:0,			//前length
+	f:0,			//f=0 zlib f=1 素
+	mh:0,			//ライン中最大のheight
+	a:0,			//画像ファイルの最後の文字-1
+	h:"",			//headerファイル用文字
+	g:"",			//gfxファイル用文字
+	init:function(f){this.c=0;this.n=0;this.x=cx;this.y=cy;this.p=0;this.mh=0;this.f=f;}
+};
+
+function _g0(name) {
+  if(document.getElementById) return document.getElementById(name);
+  else if(document.all) return document.all[name];
+  else return null;
+}
+function setxy(obj,x,y){
+  if(_d.layers){ obj.moveTo(x,y); return; } 
+  if(typeof obj.style.left!="undefined"&& typeof obj.style.left=="string"){ 
+   	obj.style.left=x+'px';
+    obj.style.top =y+'px';
+  }
+  if(typeof obj.style.pixelLeft!="undefined"){ 
+  	obj.style.pixelLeft=x;
+    obj.style.pixelTop =y;
+  }
+}
+
+//Window( Frame )の幅の取得 
+function getWindowWidth(){
+  if(window.innerWidth) return window.innerWidth; // Mozilla, Opera, NN4
+  if(_d.documentElement && _d.documentElement.clientWidth){ // 以下 IE
+   return _d.documentElement.clientWidth;
+  }
+  else if(_d.body && _d.body.clientWidth){
+   return _d.body.clientWidth;
+  }
+  return 0;
+}
+//Window( Frame )の高さの取得 
+function getWindowHeight(){
+  if(window.innerHeight) return window.innerHeight; // Mozilla, Opera, NN4
+  if(_d.documentElement && _d.documentElement.clientHeight){ // 以下 IE
+   return _d.documentElement.clientHeight;
+  }
+  else if(_d.body && _d.body.clientHeight){
+   return _d.body.clientHeight;
+  }
+  return 0;
+}
+
+function getElementScreenPosition(t){
+    var html = document.documentElement;
+    var rect = t.getBoundingClientRect();
+    return {x:rect.left-html.clientLeft, y:rect.top-html.clientTop};
+}
+
+function getElementPosition(t){
+	var html = document.documentElement;
+	var body = document.body;
+	var sx = (body.scrollLeft || html.scrollLeft);
+	var sy  = (body.scrollTop || html.scrollTop);
+	var pos = getElementScreenPosition(t);
+    return {x:pos.left+sx, y:pos.top+sy};
+}
+
+function download(blob, filename) {
+  var objectURL = (window.URL || window.webkitURL).createObjectURL(blob),
+      a = document.createElement('a');
+      e = document.createEvent('MouseEvent');
+
+  //a要素のdownload属性にファイル名を設定
+  a.download = filename;
+  a.href = objectURL;
+
+  //clickイベントを着火
+  e.initEvent("click", true, true, window, 1, 0, 0, 0, 0, false, false, false, false, 0, null);
+  a.dispatchEvent(e);
+}
+
+
+//0x4D 0x57 0x43 0x1A
+//0x58 0x46 0x54 0x58	"XFTX"
+
+function chkMWC(t){
+	var i;
+	s=[];
+
+	for(i=0;i<t.length-4;i++){
+		if(t[i]==0x4D && t[i+1]==0x57 && t[i+2]==0x43 && t[i+3]==0x1A){
+			s.push(i);
+		}
+	}
+	if(s.length!=0) s.push(t.length);
+	return s;
+}
+
+function chkXFTX(t){
+	var i;
+	s=[];
+
+	for(i=0;i<t.length-4;i++){
+		if(t[i]==0x58 && t[i+1]==0x46 && t[i+2]==0x54 && t[i+3]==0x58){
+			s.push(i);
+		}
+	}
+	return s;
+}
+function putL(t,adrs,n){
+	t[adrs]=n&0xFF;
+	t[adrs+1]=(n>>8)&0xFF;
+	t[adrs+2]=(n>>16)&0xFF;
+	t[adrs+3]=(n>>24)&0xFF;
+}
+function putW(t,adrs,n){
+	t[adrs]=n&0xFF;
+	t[adrs+1]=(n>>8)&0xFF;
+}
+function s2a(t,offset,str){
+	var i=0;
+	for(i=0;i<str.length;i++){
+		t[offset]=str.charCodeAt(i);
+		offset++;
+	}
+	return offset;
+};
+
+
+function getL(t,adrs){
+	return (t[adrs+3]<<24 | t[adrs+2]<<16 | t[adrs+1]<<8 | t[adrs]);
+}
+function getW(t,adrs){
+	return (t[adrs+1]<<8 | t[adrs]);
+}
+function getM(t,adrs){
+	return ( t[adrs+2]<<16 | t[adrs+1]<<8 | t[adrs]);
+}
+function getS(t,adrs){
+	var s=[];
+
+	while(t[adrs]){
+		s+=String.fromCharCode(t[adrs]);
+		adrs++;
+	}
+	return s;
+}
+
+
+
+function usage(){
+	var i,t;
+	var s=[];
+
+	removegall();
+
+	s.push("<a style='color:#fff;'>사용법 모르면 간첩!!</a>");
+/*
+	s.push("対応ファイル:<br>");
+	for(i=0;t=ftbl[i];i++){
+		s.push(t.n,"//",t.d,"<br>");
+	}
+*/
+	_menu.innerHTML=s.join("");
+
+}
+
+
+ftbl=[
+	{n:"/0000/local/dt000001.bin",kind:"text",t:"t",d:"텍스트"},
+	{n:"/0000/local/dt000002.bin",kind:"text",t:"s",d:"메시지"},
+	{n:"/0000/local/dt000003.bin",kind:"text",t:"s",d:"세계일주 등"},
+	{n:"/0000/local/dt000005.bin",kind:"text",t:"s",d:"이벤트"},
+	{n:"/0000/local/dt000101.bin",kind:"text",t:"s",d:"에스파냐"},
+	{n:"/0000/local/dt000102.bin",kind:"text",t:"s",d:"포르투갈"},
+	{n:"/0000/local/dt000103.bin",kind:"text",t:"s",d:"베네치아"},
+	{n:"/0000/local/dt000104.bin",kind:"text",t:"s",d:"프랑스"},
+	{n:"/0000/local/dt000105.bin",kind:"text",t:"s",d:"네덜란드"},
+	{n:"/0000/local/dt000106.bin",kind:"text",t:"s",d:"잉글랜드"},
+	{n:"/0000/local/dt000000.bin",kind:"text",t:"s1",d:"구역"},
+
+	{n:"/0010/0001/sa000000.bin",kind:"header",t:"g",d:"gfx header"},
+	{n:"/0010/0001/sa000001.bin",kind:"gfx",t:"g",d:"스킬아이콘",h:"/0010/0001/sa000000.bin"},
+	{n:"/0010/0001/sb000000.bin",kind:"header",t:"g",d:"gfx header"},
+	{n:"/0010/0001/sb000001.bin",kind:"gfx",t:"g",d:"아이템",h:"/0010/0001/sb000000.bin"},
+	{n:"/0010/0001/sb000002.bin",kind:"gfx",t:"g",d:"아이템2",h:"/0010/0001/sb000000.bin"},
+	{n:"/0010/0001/sc000000.bin",kind:"header",t:"g",d:"gfx header"},
+	{n:"/0010/0001/sc000001.bin",kind:"gfx",t:"g",d:"기타아이콘",h:"/0010/0001/sc000000.bin"},
+	{n:"/0010/0001/sd000000.bin",kind:"header",t:"g",d:"gfx header"},
+	{n:"/0010/0001/sd000001.bin",kind:"gfx",t:"g",d:"x004발견물",h:"/0010/0001/sd000000.bin"},
+	{n:"/0010/0001/sd000002.bin",kind:"gfx",t:"g",d:"004세계지도,도시지도",h:"/0010/0001/sd000000.bin"},
+	{n:"/0010/0001/sd000003.bin",kind:"gfx",t:"g",d:"004상륙지지도,기타",h:"/0010/0001/sd000000.bin"},
+	{n:"/0010/0001/sd000004.bin",kind:"gfx",t:"g",d:"004지도추가(18.01.07)",h:"/0010/0001/sd000000.bin"},
+	{n:"/0010/0001/se000000.bin",kind:"header",t:"g",d:"gfx header"},
+	{n:"/0010/0001/se000001.bin",kind:"gfx",t:"g",d:"x005문자-언어",h:"/0010/0001/se000000.bin"},
+	{n:"/0010/0001/sf000000.bin",kind:"header",t:"g",d:"gfx header"},
+	{n:"/0010/0001/sf000001.bin",kind:"gfx",t:"g",d:"x006버튼-언어",h:"/0010/0001/sf000000.bin"},
+	{n:"/0010/0001/sg000000.bin",kind:"header",t:"g",d:"gfx header"},
+	{n:"/0010/0001/sg000001.bin",kind:"gfx",t:"g",d:"x007미니버튼",h:"/0010/0001/sg000000.bin"},
+	{n:"/0010/0002/sw000000.bin",kind:"header",t:"g",d:"gfx header"},
+	{n:"/0010/0002/sw000001.bin",kind:"gfx",t:"g",d:"x008NPC초상화",h:"/0010/0002/sw000000.bin"},
+	{n:"/0010/0002/sx000000.bin",kind:"header",t:"g",d:"gfx header"},
+	{n:"/0010/0002/sx000001.bin",kind:"gfx",t:"g",d:"x009NPC초상화",h:"/0010/0002/sx000000.bin"},
+	{n:"/0010/0002/sx000002.bin",kind:"gfx",t:"g",d:"009NPC초상화",h:"/0010/0002/sx000000.bin"},
+	{n:"/0010/0002/sx000003.bin",kind:"gfx",t:"g",d:"009NPC초상화(18.01.07)",h:"/0010/0002/sx000000.bin"},
+	{n:"/0010/0002/sy000000.bin",kind:"header",t:"g",d:"gfx header"},
+	{n:"/0010/0002/sy000001.bin",kind:"gfx",t:"g",d:"x010이벤트",h:"/0010/0002/sy000000.bin"},
+	{n:"/0010/0002/sy000002.bin",kind:"gfx",t:"g",d:"010이벤트",h:"/0010/0002/sy000000.bin"},
+	{n:"/0010/0002/sy000003.bin",kind:"gfx",t:"g",d:"010이벤트-역사적사건",h:"/0010/0002/sy000000.bin"},
+	{n:"/0010/0002/sz000000.bin",kind:"header",t:"g",d:"gfx header"},
+	{n:"/0010/0002/sz000001.bin",kind:"gfx",t:"g",d:"x011이벤트",h:"/0010/0002/sz000000.bin"},
+	{n:"/0010/0001/im000000.bin",kind:"header",t:"g",d:"gfx header"},
+	{n:"/0010/0001/im000001.bin",kind:"gfx",t:"g",d:"본거지",h:"/0010/0001/im000000.bin"},
+	{n:"/0010/0001/is000000.bin",kind:"header",t:"g",d:"gfx header"},
+	{n:"/0010/0001/is000001.bin",kind:"gfx",t:"g",d:"메인화면",h:"/0010/0001/is000000.bin"},
+	{n:"/0010/0000/tm000000.bin",kind:"gfx",t:"m",d:"x도시Townmap"},
+	{n:"/0010/0000/00000001.bin",kind:"gfx",t:"c",d:"마우스커서"},
+	{n:"/0010/0000/00000000.bin",kind:"gfx",t:"f",d:"x미사용,일본어"},
+	{n:"/0010/0000/kp100000.bin",kind:"gfx",t:"k",d:"x측량지도테스트"},
+	{n:"/0010/0000/kp000000.bin",kind:"gfx",t:"k0",d:"측량지도"},
+	{n:"/0010/0000/kp000010.bin",kind:"gfx",t:"k0",d:"측량지도가나돌"},
+	{n:"/0010/local/gm000000.bin",kind:"gfx",t:"k1",d:"기타1"},
+	{n:"/0010/local/gm000001.bin",kind:"gfx",t:"k1",d:"메인화면-언어"},
+	{n:"/0010/local/gm000002.bin",kind:"gfx",t:"k1",d:"기타２"},
+	{n:"/0010/local/gm000003.bin",kind:"gfx",t:"k1",d:"KOEI로고"}
+];
+
+
+
+function ana(data,name){
+	var i,u,a,offset,l,w,h;
+	var t=new Uint8Array(data);
+	var exec=0;
+
+
+	for(i=0;u=ftbl[i];i++){
+		if(u.n==name) exec=u.t;
+	}
+
+	_menu.innerHTML="";
+	removegall();
+
+	if(exec=="t"){
+		removegall();
+//		offset=getL(t,0);
+//		l=getL(t,4);
+//		offset=getL(t,8);
+//		l=getL(t,12);
+//		offset=getL(t,16);
+//		l=getL(t,20);
+//		offset=getL(t,24);
+//		l=getL(t,28);
+		offset=getL(t,32);
+		l=getL(t,36);
+		extData = new Uint8Array(jz.zlib.decompress(t.subarray(offset+12,offset+l)));
+
+		setMenu(_dt01m);
+	}else if(exec=="g"){
+		a=parseInt(name.substr(name.length-5,1));
+
+		if(!a){
+			extHeader(t);
+			gv.h=name.substr(name.length-12,2);
+			_g0("menu").innerHTML="header:"+name;
+		}else{
+			extData = new Uint8Array(t);
+			gv.g=name.substr(name.length-12,2);
+			gv.init(0);
+			gv.a=a;
+		}
+
+		if(gv.g==gv.h){
+			gv.n=skipgheader(gv.a);
+			gviews();
+//			setTimeout(gviews,1);
+
+		}
+
+	}else if(exec=="m"){
+		gheader=new Array();
+		offset=0;
+		l=getL(t,0);
+		offset+=4;
+
+		for(i=0;i<l;i++){
+			gheader.push({id:i,w:180,h:140,o:getL(t,offset),l:getL(t,offset+4)});	
+			offset+=8;
+		}
+		extData=t;
+		gv.init(0);
+		gviews();
+
+	}else if(exec=="c"){
+		if(getL(t,0)!=0x1A43574D) return 1;
+		t = new Uint8Array(jz.zlib.decompress(t.subarray(0xC,t.length)));
+		gheader=new Array();
+		l=getL(t,4);
+		var offset=0x38;
+		var step=32*32*4;
+		for(i=0;i<l;i++){
+			gheader.push({id:i,w:32,h:32,o:offset,l:step});	
+			offset+=step;
+		}
+		extData=t;
+		gv.init(1);
+		gviews();
+
+	}else if(exec=="f"){
+		if(getL(t,0)!=0x1A43574D) return 1;
+		extData = new Uint8Array(jz.zlib.decompress(t.subarray(0x0C,t.length)));
+		gv.n=0;gv.x=cx;gv.y=cy;
+		viewfx(t);
+	}else if(exec=="k"){
+		extData = new Uint8Array(jz.zlib.decompress(t.subarray(0x38,t.length)));
+		gheader=new Array();
+		gheader.push({id:i,w:256,h:512,o:0,l:0x40000});	
+		gv.init(1);
+		gviews();
+	}else if(exec=="k0"){
+		gheader=new Array();
+		offset=0;
+		l=getL(t,0);
+		offset+=4;
+		for(i=0;i<l;i++){
+			gheader.push({id:i,w:48,h:48,o:getL(t,offset),l:getL(t,offset+4)});	
+			offset+=8;
+		}
+		extData=t;
+		gv.init(0);
+		gviews();
+
+
+	}else if(exec=="k1"){
+//gm
+//ヘッダ数.l
+//データ数.l
+//先頭オフセット.l
+//	ヘッダ:0x1C*ヘッダ数
+//	データ:0x14のヘッダ width.w,height.w,他0x10
+
+		t = new Uint8Array(jz.zlib.decompress(t.subarray(0x0C,t.length)));
+		gheader=new Array();
+		offset=0;
+		l=getL(t,4);
+		offset=getL(t,8);
+		for(i=0;i<l;i++){
+			w=getW(t,offset);
+			h=getW(t,offset+2);
+			offset+=0x14;
+			gheader.push({id:i,w:w,h:h,o:offset,l:w*h*4});	
+			offset+=w*h*4;
+		}
+		extData=t;
+		gv.init(1);
+		gviews();
+
+
+	}else if(exec=="s"){
+
+//		offset=getL(t,0);
+//		l=getL(t,4);
+//		offset=getL(t,8);
+//		l=getL(t,12);
+//		offset=getL(t,16);
+//		l=getL(t,20);
+//		offset=getL(t,24);
+//		l=getL(t,28);
+		offset=getL(t,32);
+		l=getL(t,36);
+		var dtbl=new Array();
+
+		t = new Uint8Array(jz.zlib.decompress(t.subarray(offset+12,offset+l)));
+
+		offset=0x35;
+		l=getL(t,offset);		//table数
+		u=getL(t,offset+4);
+		var dl=getL(t,u);		//データレングス
+		u+=4;					//データトップ
+		offset+=8;
+		var ds=u;
+		for(i=0;i<l;i++){
+			dtbl.push({id:getL(t,offset),offset:u+getL(t,offset+4)});
+			offset+=8;
+		}
+		for(i=0;i<dl;i++){					//decrypt
+			t[ds+i]^=t[4+(i%0x31)];
+			
+		}
+		var s=new Array();
+		var str,c,j,k,sl,index,pm;
+
+
+		s.push("<table class='sortable' id='sorter'><tr><th title=総数:",dtbl.length,">ID</th><th>str.</th></tr>");
+
+		for(i=0;u=dtbl[i];i++){
+
+
+			index=u.offset;
+			l=getW(t,index+0x2);
+			index+=4;
+			str=[];
+			pm=[];
+			for(j=0;j<l;j++){
+				c=u.id;
+				pm.push(getW(t,index));
+				offset=u.offset+getW(t,index+2);
+				sl=getW(t,index+4);
+				index+=6;
+				for(k=0;k<sl;k+=2){
+					a=(t[offset]*0x100+t[offset+1])^(c);
+					if(a==0x0A) str.push("<br>");
+					str.push(String.fromCharCode(a));
+				offset+=2;
+				c++;
+				}
+			}
+			s.push("<tr><td>",u.id,"</td><td style='text-align:left'>",str.join(""),"</td>");
+//			s.push("<td>",pm.join(","),"</td>");
+			s.push("</tr>");
+
+
+		}
+
+		s.push("</table>");
+		_out.innerHTML=s.join("");
+		sorter=new table.sorter("sorter");
+		sorter.init("sorter",0);
+
+
+
+
+
+	}else if(exec=="s1"){
+
+		var pm;
+		var str;
+//		offset=getL(t,0);
+//		l=getL(t,4);
+//		offset=getL(t,8);
+//		l=getL(t,12);
+//		offset=getL(t,16);
+//		l=getL(t,20);
+//		offset=getL(t,24);
+//		l=getL(t,28);
+		offset=getL(t,32);
+		l=getL(t,36);
+
+		t = new Uint8Array(jz.zlib.decompress(t.subarray(offset+12,offset+l)));
+
+		pm=[];
+		s=[];
+	
+		l=getL(t,0);
+		offset=8;
+		s.push("<table class='sortable' id='sorter'><tr><th title=総数:",l,">ID</th><th>p0</th><th>p1</th><th>p2</th><th>p3</th></tr>");
+
+		for(i=0;i<l;i++){
+			c=getL(t,offset);
+			s.push("<tr><td>",c,"</td>");
+			offset+=0xC;
+			a=getW(t,offset);
+			offset+=2;
+			s.push("<td>",extStr(t.subarray(offset,offset+a),c),"</td>");
+			offset+=a;
+
+			a=getS(t,offset);
+			s.push("<td>",a,"</td>");
+			offset+=a.length+1;
+
+			a=getS(t,offset);
+			s.push("<td>",a,"</td>");
+			offset+=a.length+1;
+
+			a=getS(t,offset);
+			s.push("<td>",a,"</td>");
+			offset+=a.length+1;
+
+
+			offset+=0x42;
+
+
+		}
+		s.push("</table>");
+		_out.innerHTML=s.join("");
+		sorter=new table.sorter("sorter");
+		sorter.init("sorter",0);
+
+	}else if(exec=="ogg"|| !exec){
+
+		if(getL(t,0)!=0x53564F4B) return 1;
+		offset=0x20;
+		for(i=0;i<0x100;i++){
+			t[offset]^=i;
+			offset++;
+		}
+		var looppoint=getL(t,8)/44100;
+
+//		console.log(looppoint);
+
+
+		b64.encode(t.subarray(0x20,0x20+getL(t,4)),function (d){
+			var t;
+			_out.appendChild(t=_d.createElement('audio'));
+			t.src=["data:audio/ogg;base64,",d].join("");
+			t.addEventListener( 'ended', function(){this.currentTime=looppoint;this.play();});
+			t.controls = true;
+			t.autoplay=true;
+		});
+
+	}else return 1;
+
+	return 0;
+
+}
+
+function removegall(){
+	window.scrollTo(0,0);
+	var t=_d.getElementsByTagName("canvas");
+	while (t.length > 0) {
+	    _d.body.removeChild(t[0]);
+	}
+
+}
+//<button onclick=gviewb(4426,3,3,100,5820)>test</button>
+//<button onclick=gviewb(0,32,64,100,2048)>test</button>
+
+function gviewb(id,xc,yc,loop,max){
+	removegall();
+	gv.init(1);
+
+	var i,j,k,t,d,u,h,m,g,l;
+	var x=gv.x;
+	var y=gv.y;
+	var mx=getWindowWidth();
+	var buf=extData;
+	var bsize=128;
+
+	for(i=0;i<loop;i++){
+		if(id>max) break;
+		if((x+bsize*xc+2)>=mx){
+			x=gv.x;
+			y+=bsize*yc+2;
+		}
+		_d.body.appendChild(t=_d.createElement('canvas'));
+		t.width=xc*bsize;
+		t.height=yc*bsize;
+		t.className="cv";
+		m = t.getContext("2d");
+		g=m.createImageData(bsize,bsize);
+		setxy(t,x,y);
+		t.addEventListener('click',function(){
+			if(select) return;
+			var i,t,u;
+			_d.body.appendChild(t=_d.createElement('img'));
+			t.id="image";
+			t.src=this.toDataURL('image/png');
+			t.className="cv";
+			t.style.border="solid 1px white";
+			t.addEventListener('click',function(){
+				var i,t,u;
+				t =_d.getElementsByTagName("canvas");
+				for(i=0;u=t[i];i++){
+//				u.style.visibility="visible";
+					u.style.opacity=1.0;
+				}
+				select=0;
+			    _d.body.removeChild(this);
+			});
+			setxy(t,parseInt(this.style.left)-1,parseInt(this.style.top)-1);
+			var t=_d.getElementsByTagName("canvas");
+			for(i=0;u=t[i];i++){
+//			u.style.visibility="hidden";
+				u.style.opacity=0.2;
+				select=1;
+			}
+
+		});
+
+
+		for(j=0;j<yc;j++){
+			for(k=0;k<xc;k++){
+				h=seaHeader(id);
+				u = new Uint8Array(jz.zlib.decompress(buf.subarray(h.o+12,h.o+h.l+2)));
+				l=h.w*h.h*4;
+				for(d=0;d<l;d+=4){
+					g.data[d]=u[d+2];
+					g.data[d+1]=u[d+1];
+					g.data[d+2]=u[d];
+					g.data[d+3]=u[d+3];
+				}
+				m.putImageData(g,k*bsize,j*bsize);
+				id++;
+			}
+		}
+				x+=xc*bsize+2;
+
+	}
+
+	function seaHeader(id){
+		var i,l;
+		l=gheader.length;
+		for(i=0;i<l;i++){
+			if(gheader[i].id==id) return gheader[i];
+		}
+	}
+
+}	
+
+function viewfx(t){
+	var a,i,j,u,offset;
+	var x=gv.x;
+	var y=gv.y;
+	var u=extData;
+	c=0x1000;
+
+	for(i=gv.n;i<0x10000;i++){
+
+		if(!parseInt(i&0x1F)){
+			a = "000"+parseInt(i).toString(16);
+			a=(a.substring(a.length-4, a.length)).toUpperCase()+":";
+			for(j=0;j<5;j++){
+				drawfont(u,a.charCodeAt(j),x,y);
+				x+=8;
+			}
+
+		}
+		
+		a=getL(u,0x20004+i*4);
+		if(a!=0x62008){
+			drawfont(u,i,x,y);
+		}
+			x+=16;
+
+		if(parseInt(i&0x1F)==0x1F){
+			x=cx;
+			y+=16;
+		}
+		c--;
+		if(!c){
+			gv.n=i+1;
+			gv.x=x;
+			gv.y=y;
+			setTimeout(viewfx,1);
+			break;
+		}
+
+	}
+
+
+	function drawfont(u,c,x,y){
+		var a,b,i,k,m,g,l;
+		var w=u[c*2+4];
+		var h=u[c*2+1+4];
+		var offset=getL(u,0x20004+c*4);
+		_d.body.appendChild(t=_d.createElement('canvas'));
+		t.title=c.toString(16).toUpperCase();
+		t.width=w;
+		t.height=h;
+		t.className="cv";
+		setxy(t,x,y);
+		m = t.getContext("2d");
+		g=m.createImageData(w,h);
+
+		l=w*h/4;
+		var gi=0;
+		for(i=0;i<l;i++){
+			a=u[offset];
+			offset++;
+			for(k=0;k<4;k++){
+				b=((a>>6)&0x03)*85;
+				g.data[gi]=0;
+				g.data[gi+1]=0;
+				g.data[gi+2]=0;
+				g.data[gi+3]=b;
+				a=a<<2;
+				gi+=4;
+			}
+		}
+		m.putImageData(g,0,0);
+	}
+
+
+}
+
+
+
+
+//	gheader.push({id:getL(t,offset),w:getL(t,offset+4),h:getL(t,offset+8),o:getL(t,offset+16),l:getL(t,offset+20)});
+
+function gviews(){
+	var i,t;
+	var x=gv.x;
+	var y=gv.y;
+	var p=gv.p;
+	var mh=gv.mh;
+	var mx=getWindowWidth();
+//	var mx=48*65;
+	var l=0;
+
+//	gv.n=64*16;		//for test
+
+	if(!gv.c) removegall();
+	gv.c++;
+
+	for(i=gv.n;t=gheader[i];i++){
+		if(t.o<p) break;
+		if(!mh) mh=t.h;
+		else if (mh<t.h) mh=t.h;
+
+		if((x+t.w+20)>=mx){
+//		if((x+t.w)>=mx){
+			x=cx;
+			y+=mh+20;
+//			y+=mh;
+		}
+		l+=gview(i,x,y,gv.f);
+		x+=t.w+20;
+//		x+=t.w;
+		p=t.o;
+
+		if(l>=0x20000){
+			gv.x=x;
+			gv.y=y;
+			gv.p=p;
+			gv.n=i+1;
+			gv.mh=mh
+			setTimeout(gviews,1);
+			break;
+		}
+
+	}
+	function gview(n,x,y,flag){
+		var m,g,d,i,u,l;
+		var h=gheader[n];
+		var t=extData;
+		if(flag) u=t.subarray(h.o,h.o+h.l);
+		else u = new Uint8Array(jz.zlib.decompress(t.subarray(h.o+12,h.o+h.l+2)));
+		_d.body.appendChild(t=_d.createElement('canvas'));
+		t.id="g"+h.id;
+		t.title=[h.id,":",h.w,"x",h.h].join("");;
+		t.width=h.w;
+		t.height=h.h;
+		t.className="cv";
+		setxy(t,x,y);
+		t.addEventListener('click',function(){
+			if(select) return;
+			var i,t,u;
+			_d.body.appendChild(t=_d.createElement('img'));
+			t.id="image";
+//			t.src=this.toDataURL('image/png');
+			t.src=this.toDataURL('image/png',0.0);
+			t.className="cv";
+			t.style.border="solid 1px white";
+			t.addEventListener('click',function(){
+				var i,t,u;
+				t =_d.getElementsByTagName("canvas");
+				for(i=0;u=t[i];i++){
+//				u.style.visibility="visible";
+					u.style.opacity=1.0;
+				}
+				select=0;
+			    _d.body.removeChild(this);
+			});
+			setxy(t,parseInt(this.style.left)-1,parseInt(this.style.top)-1);
+			var t=_d.getElementsByTagName("canvas");
+			for(i=0;u=t[i];i++){
+//			u.style.visibility="hidden";
+				u.style.opacity=0.2;
+				select=1;
+			}
+
+		});
+
+		m = t.getContext("2d");
+		g=m.createImageData(h.w,h.h);
+		d=g.data;
+
+		l=h.w*h.h*4;
+		for(i=0;i<l;i+=4){
+//			g.data[i]=u[i+2];
+//			g.data[i+1]=u[i+1];
+//			g.data[i+2]=u[i];
+//			g.data[i+3]=u[i+3];
+
+			d[i]=u[i+2];
+			d[i+1]=u[i+1];
+			d[i+2]=u[i];
+			d[i+3]=u[i+3];
+
+
+//			g.data[i]=u[i];
+//			g.data[i+1]=u[i+1];
+//			g.data[i+2]=u[i+2];
+//			g.data[i+3]=u[i+3];
+
+
+		}
+		m.putImageData(g,0,0);
+		return l;
+
+	}
+
+}
+
+function skipgheader(n){
+	var i,t;
+
+	n--;
+	if(!n) return 0;
+	var p=gheader[0].o;
+	for(i=1;t=gheader[i];i++){
+		if(t.o<p){
+			n--;
+			if(!n) break;
+		}
+		p=t.o;
+	}
+	return i;
+}
+
+
+
+function extHeader(t){
+
+	var i,t;
+	var offset=0;
+	l=getL(t,offset+16);
+	offset+=0x18+getL(t,offset)*20;
+	gheader=new Array();
+
+	for(i=0;i<l;i++){
+	gheader.push({id:getL(t,offset),w:getL(t,offset+4),h:getL(t,offset+8),o:getL(t,offset+16),l:getL(t,offset+20)});
+	offset+=0x1C;
+	}
+	for(i=0;t=gheader[i];i++){
+//		console.log(i+"id:"+t.id+"/width:"+t.w+"/height:"+t.h+"/offset:"+t.o+"/length:"+t.l);
+	}
+
+}
+
+
+_dt01m=[
+
+	{name:"커맨드",comm:"ext(extData,getL(extData,0x004),'comm')"},
+	{name:"문화권",comm:"ext(extData,getL(extData,0x00C),'sea')"},
+	{name:"국가",comm:"ext(extData,getL(extData,0x24),'map')"},
+	{name:"직업",comm:"ext(extData,getL(extData,0x2C),'trade')"},
+	{name:"스킬",comm:"ext(extData,getL(extData,0x34),'skill')"},
+	{name:"작위",comm:"ext(extData,getL(extData,0x3C),'rank')"},
+	{name:"해역",comm:"ext(extData,getL(extData,0x44),'ocean')"},
+	{name:"입항허가",comm:"ext(extData,getL(extData,0x4C),'sea')"},
+	{name:"도시",comm:"ext(extData,getL(extData,0x54),'town')"},
+	{name:"상륙지",comm:"ext(extData,getL(extData,0x5C),'land')"},
+	{name:"아이템 계열",comm:"ext(extData,getL(extData,0x64),'sea')"},
+	{name:"아이템 분류",comm:"ext(extData,getL(extData,0x6C),'sea')"},
+	{name:"아이템",comm:"ext(extData,getL(extData,0x74),'map')"},
+	{name:"장비품",comm:"ext(extData,getL(extData,0x7C),'acce')"},
+	{name:"레시피",comm:"ext(extData,getL(extData,0x84),'map')"},
+	{name:"지도",comm:"ext(extData,getL(extData,0x8C),'map')"},
+	{name:"교역품 분류",comm:"ext(extData,getL(extData,0x94),'sea')"},
+	{name:"교역품",comm:"ext(extData,getL(extData,0x9C),'trade')"},
+	{name:"발견물 장식품",comm:"ext(extData,getL(extData,0xA4),'map')"},
+	{name:"포탄 종류",comm:"ext(extData,getL(extData,0xAC),'sea')"},
+	{name:"대포",comm:"ext(extData,getL(extData,0xB4),'cannon')"},
+	{name:"추가장갑",comm:"ext(extData,getL(extData,0xBC),'armor')"},
+	{name:"특수장비",comm:"ext(extData,getL(extData,0xC4),'sw')"},
+	{name:"보조돛",comm:"ext(extData,getL(extData,0xCC),'sail')"},
+	{name:"문장",comm:"ext(extData,getL(extData,0xD4),'map')"},
+	{name:"선수상",comm:"ext(extData,getL(extData,0xDC),'fh')"},
+	{name:"선박",comm:"ext(extData,getL(extData,0xE4),'ship')"},
+	{name:"돛 개조",comm:"ext(extData,getL(extData,0xEC),'map')"},
+	{name:"재질",comm:"ext(extData,getL(extData,0xF4),'map')"},
+	{name:"발견물 분류",comm:"ext(extData,getL(extData,0xFC),'sea')"},
+	{name:"발견물",comm:"ext(extData,getL(extData,0x104),'find')"},
+	{name:"발견물 카드",comm:"ext(extData,getL(extData,0x10C),'sea')"},
+	{name:"타로",comm:"ext(extData,getL(extData,0x114),'map')"},
+	{name:"호칭",comm:"ext(extData,getL(extData,0x11C),'map')"},
+	{name:"부관",comm:"ext(extData,getL(extData,0x124),'sea')"},
+	{name:"주점 메뉴",comm:"ext(extData,getL(extData,0x12C),'drunk')"},
+	{name:"감정표현",comm:"extEmotion(extData,getL(extData,0x134))"},
+	{name:"입구",comm:"ext(extData,getL(extData,0x13C),'place')"},
+	{name:"건물",comm:"ext(extData,getL(extData,0x144),'sea')"},
+	{name:"정기선",comm:"ext(extData,getL(extData,0x14C),'liner')"},
+//	{name:"?154",comm:"ext(extData,getL(extData,0x154),'tx')"},
+	{name:"항해도",comm:"ext(extData,getL(extData,0x15C),'wmap')"},
+//	{name:"?164",comm:"ext(extData,getL(extData,0x164),'tx2')"},
+	{name:"개인농장 종류",comm:"ext(extData,getL(extData,0x16C),'sea')"},
+	{name:"개인농장 시설",comm:"ext(extData,getL(extData,0x174),'sea')"},
+	{name:"애완동물",comm:"ext(extData,getL(extData,0x17C),'pet')"},
+//	{name:"?184",comm:"ext(extData,getL(extData,0x184),'tx3')"},
+	{name:"상급 연금술",comm:"ext(extData,getL(extData,0x18C),'map')"},
+	{name:"PC방 효과",comm:"ext(extData,getL(extData,0x194),'map')"},
+	{name:"테크닉",comm:"ext(extData,getL(extData,0x19C),'tec')"},
+//	{name:"?1a4",comm:"ext(extData,getL(extData,0x1A4),'tx4')"},
+	{name:"유적던전",comm:"ext(extData,getL(extData,0x1AC),'sea')"},
+	{name:"메모리얼 앨범",comm:"ext(extData,getL(extData,0x1B4),'map')"},
+//	{name:"?1ac",comm:"ext(extData,getL(extData,0x1BC),'tx')"},
+	{name:"길드개척도시 건물",comm:"ext(extData,getL(extData,0x1C4),'build')"},
+//	{name:"?1cc",comm:"ext(extData,getL(extData,0x1CC),'tx5')"},
+	{name:"길드개척도시 소품",comm:"ext(extData,getL(extData,0x1D4),'sea')"},
+	{name:"길드개척도시 지역",comm:"ext(extData,getL(extData,0x1DC),'sea')"},
+	{name:"오리지날 비법 명칭1",comm:"ext(extData,getL(extData,0x1E4),'on')"},
+	{name:"오리지날 비법 명칭2",comm:"ext(extData,getL(extData,0x1EC),'on')"},
+//	{name:"?1f4",comm:"ext(extData,getL(extData,0x1F4),'tec2')"},
+//	{name:"?1fc",comm:"ext(extData,getL(extData,0x1FC),'tx5')"},
+	{name:"대학 연구 행동",comm:"ext(extData,getL(extData,0x204),'map')"},
+	{name:"대학 전공",comm:"ext(extData,getL(extData,0x20C),'uniP')"},
+	{name:"대학 특별강좌",comm:"ext(extData,getL(extData,0x214),'uniP2')"},
+	{name:"대학 논문주제",comm:"ext(extData,getL(extData,0x21C),'uniP3')"},
+	{name:"일본 유료 옵션",comm:"ext(extData,getL(extData,0x224),'tx6')"},
+//	{name:"?22c",comm:"ext(extData,getL(extData,0x22C),'as5')"},
+	{name:"일본 메메의 소식통",comm:"ext(extData,getL(extData,0x234),'tx7')"},
+//	{name:"?23c",comm:"ext(extData,getL(extData,0x23C),'ax')"},
+	{name:"가나돌",comm:"ext(extData,getL(extData,0x244),'map')"},
+	{name:"궁정고문",comm:"ext(extData,getL(extData,0x24C),'map')"},
+	{name:"궁정고문 친구",comm:"ext(extData,getL(extData,0x254),'map')"},
+	{name:"황제선거 콤보",comm:"ext(extData,getL(extData,0x25C),'sea')"},
+	{name:"황제선거 후보",comm:"ext(extData,getL(extData,0x264),'sea')"},
+	{name:"황제선거 필살기",comm:"ext(extData,getL(extData,0x26C),'map')"},
+	{name:"황제선거 표어",comm:"ext(extData,getL(extData,0x274),'sea')"},
+	{name:"황제선거 공약",comm:"ext(extData,getL(extData,0x27C),'map')"},
+	{name:"황제선거 선제후",comm:"ext(extData,getL(extData,0x284),'sea')"},
+	{name:"트레져헌트 분류",comm:"ext(extData,getL(extData,0x28C),'trea')"},
+	{name:"트레져헌트 모험기",comm:"ext(extData,getL(extData,0x294),'sea')"},
+	{name:"트레져헌트 테마",comm:"ext(extData,getL(extData,0x29C),'map')"},
+	{name:"트레져헌트 렐릭피스",comm:"ext(extData,getL(extData,0x2A4),'map')"},
+	{name:"역사적사건",comm:"ext(extData,getL(extData,0x2AC),'ax4')"},
+	{name:"역사적사건 효과",comm:"ext(extData,getL(extData,0x2B4),'sea')"},
+	{name:"역사적사건 설명",comm:"ext(extData,getL(extData,0x2BC),'he')"},
+	{name:"멘토",comm:"ext(extData,getL(extData,0x2C4),'sea')"},
+	{name:"선박조합 종류",comm:"ext(extData,getL(extData,0x2CC),'map')"},
+	{name:"선박조합 보너스",comm:"ext(extData,getL(extData,0x2D4),'map')"},
+	{name:"월드클락",comm:"ext(extData,getL(extData,0x2DC),'age')"},	
+	{name:"일본 마일리지",comm:"ext(extData,getL(extData,0x2E4),'jpm')"},
+	{name:"헬프노트",comm:"ext(extData,getL(extData,0x2EC),'map')"},
+	{name:"해적과 토벌대",comm:"ext(extData,getL(extData,0x2F4),'map')"},
+	{name:"별칭1",comm:"ext(extData,getL(extData,0x2FC),'nick')"},
+	{name:"별칭2",comm:"ext(extData,getL(extData,0x304),'nick')"},
+	{name:"아틀라스 행동",comm:"ext(extData,getL(extData,0x30C),'sea')"},
+	{name:"아틀라스 기본정보",comm:"ext(extData,getL(extData,0x314),'sea')"},
+	{name:"아틀라스 정보",comm:"ext(extData,getL(extData,0x31C),'sea')"},
+	{name:"아틀라스 도시 분류",comm:"ext(extData,getL(extData,0x324),'sea')"},
+//	{name:"?33c",comm:"ext(extData,getL(extData,0x33C),'tx6')"},
+	{name:"변성연금",comm:"ext(extData,getL(extData,0x374),'map')"},
+//	{name:"?37c",comm:"ext(extData,getL(extData,0x37C),'map')"},
+	{name:"지방함대 분류",comm:"ext(extData,getL(extData,0x384),'sea')"},
+	{name:"지방함대",comm:"ext(extData,getL(extData,0x38C),'ra')"},
+	{name:"철도",comm:"ext(extData,getL(extData,0x394),'map')"},
+	{name:"철도효과",comm:"ext(extData,getL(extData,0x39C),'map')"},
+	{name:"보상대사",comm:"ext(extData,getL(extData,0x3A4),'sea')"},
+//	{name:"?3ac",comm:"ext(extData,getL(extData,0x3AC),'map')"},
+	{name:"항해 일지",comm:"ext(extData,getL(extData,0x3B4),'map')"},
+	{name:"초보자 튜토리얼",comm:"ext(extData,getL(extData,0x3BC),'map')"},
+	{name:"가나돌?",comm:"ext(extData,getL(extData,0x3C4),'lgan')"},
+//	{name:"?3ca(내용없음)",comm:"ext(extData,getL(extData,0x3CA),'map')"},
+	{name:"항해 안내서",comm:"ext(extData,getL(extData,0x3D4),'ra')"},
+	{name:"항해 안내서 분류",comm:"ext(extData,getL(extData,0x3DC),'sea')"},
+	{name:"전승",comm:"ext(extData,getL(extData,0x3E4),'lgnd')"},
+	{name:"전승 항로",comm:"ext(extData,getL(extData,0x3EC),'map')"},
+//	{name:"?3f4",comm:"ext(extData,getL(extData,0x3F4),'map')"},
+//	{name:"?3fc",comm:"ext(extData,getL(extData,0x3FC),'map')"},
+//	{name:"?404",comm:"ext(extData,getL(extData,0x404),'map')"},
+	{name:"NPC 구조 분류",comm:"ext(extData,getL(extData,0x40C),'map')"},
+	{name:"NPC 구조",comm:"ext(extData,getL(extData,0x414),'rsc')"},
+	{name:"체험훈련",comm:"ext(extData,getL(extData,0x41C),'map')"},
+//	{name:"?424",comm:"ext(extData,getL(extData,0x424),'map')"},
+	{name:"선박데코",comm:"ext(extData,getL(extData,0x42C),'deco')"}
+
+
+//	{name:"ex.",comm:"extSP(extData)"}
+
+	];
+
+
+
+tbl={
+
+//	s - script
+//	l - 4 byte data
+//	w - 2 byte data
+//	b - 1 byte data
+//	u - 
+//	d - dump (must include number of bytes to be dumped)
+
+"comm"	:[{t:"s",n:"명칭"},{t:"l",n:"p1"},{t:"l",n:"p2"}],
+"map"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"}],
+"ocean"	:[{t:"s",n:"명칭"},{t:"l",n:"입항허가"}],
+"sea"	:[{t:"s",n:"명칭"}],
+"town"	:[{t:"s",n:"명칭"},{t:"l",n:"분류"},{t:"l",n:"국가"},{t:"b",n:"문화권"}],
+"land"	:[{t:"s",n:"명칭"},{t:"b",n:"도시"},{t:"b",n:"문화권"}],
+"acce"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"w",n:"분류"},{t:"l",n:"공격력"},{t:"l",n:"방어력"},{t:"l",n:"복장예절"},{t:"l",n:"변장도"},{t:"l",n:"내구도"},{t:"l",n:"사정거리"}],
+"trade"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"w",n:"분류"}],
+"skill"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"w",n:"분류"},{t:"w",n:"상세분류"},{t:"w",n:"스킬트리 좌표(가로)"},{t:"w",n:"스킬트리 좌표(세로)"},{t:"w",n:"선행 스킬"},{t:"w",n:"표시 여부"},{t:"l",n:"비용"},{t:"w",n:"직업"}],
+"rank"	:[{t:"s",n:"유럽"},{t:"s",n:"오스만"},{t:"s",n:"왕립함대"}],
+"cannon":[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"l",n:"포문 수"},{t:"l",n:"관통력"},{t:"l",n:"장비 부위"},{t:"l",n:"사정거리"},{t:"l",n:"포탄속도"},{t:"l",n:"작렬범위"},{t:"l",n:"장전속도"},{t:"l",n:"p7"},{t:"l",n:"내구도"},{t:"l",n:"포탄 종류"}],
+"armor"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"w",n:"장갑"},{t:"w",n:"항해속도"},{t:"w",n:"내구도"},{t:"w",n:"p3"}],
+"sw"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"l",n:"분류"},{t:"l",n:"성능"},{t:"l",n:"내구도"},{t:"b",n:"장착 부위"},{t:"b",n:"화력"},{t:"b",n:"사정범위"},{t:"w",n:"사정거리"},{t:"b",n:"방열속도"},{t:"b",n:"내탄방어"},{t:"b",n:"내화방어"},{t:"b",n:"탑재 제한"},{t:"b",n:"부가 효과"}],
+"sail"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"l",n:"가로돛"},{t:"l",n:"세로돛"},{t:"l",n:"선회"},{t:"l",n:"내구도"}],
+"fh"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"l",n:"재해 수호"},{t:"l",n:"피로 경감"},{t:"l",n:"선원 장악"},{t:"l",n:"포탄 회피"},{t:"l",n:"내구도"}],
+"ship"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"w",n:"이미지 번호"},{t:"l",n:"p1"},{t:"l",n:"p2"},{t:"l",n:"p3"},{t:"l",n:"p4"},{t:"l",n:"선박 크기"},{t:"l",n:"선박 종류"},{t:"l",n:"마스트 수"},{t:"d",o:24,n:"dump"}],
+"find"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"w",n:"분류"},{t:"w",n:"난이도"},{t:"w",n:"경험치"},{t:"w",n:"p3"},{t:"w",n:"명성"},{t:"w",n:"p5"},{t:"w",n:"카드 분류"}],
+"drunk"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"w",n:"분류"}],
+"place"	:[{t:"s",n:"명칭"},{t:"w",n:"p1"}],
+"liner"	:[{t:"s",n:"명칭"},{t:"l",n:"기항도시1"},{t:"l",n:"기항도시2"}],
+"wmap"	:[{t:"s",n:"명칭"},{t:"l",n:"북"},{t:"l",n:"남"},{t:"l",n:"서"},{t:"l",n:"동"},{t:"l",n:"서북"},{t:"l",n:"동북"},{t:"l",n:"서남"},{t:"l",n:"동남"}],
+"pet"	:[{t:"s",n:"명칭"},{t:"d",o:36,n:"dump"}],
+"tec"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"w",n:"p1"},{t:"l",n:"무기 종류"},{t:"b",n:"테크닉 종류"},{t:"b",n:"랭크"},{t:"b",n:"소비 게이지"},{t:"b",n:"p42"},{t:"b",n:"범위"},{t:"w",n:"사정거리"}],
+"build"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"w",n:"p1"}],
+"on"	:[{t:"s",n:"명칭"},{t:"l",n:"p0"},{t:"b",n:"p1"}],
+"uniP"	:[{t:"b",n:"분류"},{t:"b",n:"연구동"},{t:"w",n:"개방 횟수"},{t:"w",n:"누적 횟수"},{t:"w",n:"스킬1"},{t:"w",n:"랭크1"},{t:"w",n:"스킬2"},{t:"w",n:"랭크2"},{t:"w",n:"스킬3"},{t:"w",n:"랭크3"},{t:"w",n:"스킬4"},{t:"w",n:"랭크4"},{t:"w",n:"스킬5"},{t:"w",n:"랭크5"},{t:"w",n:"스킬6"},{t:"w",n:"랭크6"},{t:"b",n:"입항허가"},{t:"w",n:"퀘스트"},{t:"w",n:"발견물"},{t:"w",n:"직업"},{t:"w",n:"직업특화"},{t:"s",n:"명칭"},{t:"s",n:"설명"}],
+"uniP2"	:[{t:"w",n:"전공1"},{t:"w",n:"전공2"},{t:"w",n:"전공3"},{t:"w",n:"페이지 수"},{t:"w",n:"획득 학점"},{t:"w",n:"획득 경험치"},{t:"w",n:"획득 명성"},{t:"b",n:"p7"},{t:"s",n:"명칭"},{t:"s",n:"설명"}],
+"uniP3"	:[{t:"b",n:"연구동"},{t:"b",n:"전공"},{t:"b",n:"연구 행동1"},{t:"w",n:"획득 페이지1"},{t:"b",n:"연구 행동2"},{t:"w",n:"획득 페이지2"},{t:"b",n:"연구 행동3"},{t:"w",n:"획득 페이지3"},{t:"w",n:"필요 페이지"},{t:"w",n:"획득 학점"},{t:"w",n:"획득 스킬"},{t:"s",n:"명칭"}],
+"trea"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"b",n:"p1"},{t:"w",n:"모험기1"},{t:"l",n:"p3"},{t:"b",n:"p4"},{t:"w",n:"모험기2"},{t:"l",n:"p6"},{t:"b",n:"p7"},{t:"w",n:"모험기3"},{t:"l",n:"p9"},{t:"b",n:"p10"},{t:"w",n:"모험기4"},{t:"l",n:"p12"},{t:"b",n:"p13"},{t:"w",n:"모험기5"},{t:"l",n:"p15"},{t:"b",n:"p16"},{t:"w",n:"모험기6"},{t:"l",n:"p18"},{t:"b",n:"p19"},{t:"w",n:"모험기7"},{t:"l",n:"p21"},{t:"b",n:"p22"},{t:"w",n:"모험기8"},{t:"l",n:"p24"},{t:"b",n:"p25"},{t:"w",n:"모험기9"},{t:"l",n:"p27"},{t:"b",n:"p28"},{t:"w",n:"모험기10"},{t:"l",n:"p30"}],
+"age"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"b",n:"세기"}],
+"he"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"s",n:"설명2"},{t:"s",n:"설명3"},{t:"s",n:"설명4"}],
+"ra"	:[{t:"s",n:"명칭"},{t:"s",n:"설명1"},{t:"s",n:"설명2"}],
+"jpm"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"w",n:"누적일수"}],
+"nick"	:[{t:"s",n:"명칭"},{t:"b",n:"분류"},{t:"w",n:"유형1"},{t:"w",n:"유형2"}],
+"lgan"	:[{t:"s",n:"명칭"},{t:"b",n:"p1"}],
+"lgnd"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"w",n:"발견물"},{t:"b",n:"p1"},{t:"w",n:"p2"},{t:"d",o:75,n:"dump"}],
+"rsc"	:[{t:"s",n:"명칭"},{t:"b",n:"p1"},{t:"b",n:"p2"}],
+"deco"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"b",n:"깃발"},{t:"b",n:"전방 좌측"},{t:"b",n:"전방 우측"},{t:"b",n:"후방 좌측"},{t:"b",n:"후방 우측"},{t:"w",n:"p1"},{t:"w",n:"p2"},{t:"b",n:"p3"}],
+
+"tx"	:[{t:"d",o:12,n:"dump"}],
+"tx2"	:[{t:"d",o:8,n:"dump"}],
+"tx3"	:[{t:"d",o:36,n:"dump"}],
+"tx4"	:[{t:"d",o:3,n:"dump"}],
+"tx5"	:[{t:"d",o:27,n:"dump"}],
+"tec2"	:[{t:"d",o:23,n:"dump"}],
+"tx6"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"b",n:"p0"}],
+"tx7"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"s",n:"설명"},{t:"s",n:"설명"},{t:"s",n:"설명"},{t:"d",o:6,n:"dump"}],
+"tx8"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"d",o:18,n:"dump"}],
+"tx9"	:[{t:"s",n:"명칭"},{t:"d",o:2,n:"dump"}],
+"tx10"	:[{t:"s",n:"명칭"},{t:"d",o:9,n:"dump"}],
+"ax"	:[{t:"d",o:32,n:"p0"}],
+"ax4"	:[{t:"s",n:"명칭"},{t:"s",n:"설명"},{t:"b",n:"?"}],
+
+};
+
+
+sts=[
+	"",		//0
+	"？",		//1
+	"視界不良",//2
+	"混乱",		//3
+	"？",	//4
+	"毒",	//5
+	"6",		//6
+	"7",		//7
+	"8",		//8
+	"9",		//9
+	"完全回避",//10
+	"11",		//11
+	"12",		//12
+	"13",		//13
+	"14",		//14
+	"15",		//15
+	"16",		//16
+	"足縛り",//17
+	"麻痺",//18
+	"やけど",//19
+	"裂傷",//20
+	"猛毒",//21
+	"？",		//22
+	"？",		//23
+	"24",		//24
+	"25",		//25
+	"攻撃力上昇",//26
+	"防御力上昇"//27
+];
+
+//0{t:"w",n:"p0"}
+//2{t:"l",n:"武器種別"}
+//6{t:"b",n:"種別"}
+//7{t:"b",n:"ランク"}
+//8{t:"b",n:"消費"}
+//9{t:"b",n:"p41"}
+//10{t:"b",n:"範囲"}
+//11{t:"w",n:"射程"}]
+
+
+function extSP(t){
+
+	var a,b,c,k,n,i,j,id,v;
+	var p=[];
+	var kind=["投","剣","槍","棒","斧","銃","弓"];
+	var kind2=["奥","P","Q","F","罠","商"];
+
+	var start=getL(t,0x018C);
+	var l=getL(t,start);
+	var offset=start+4;
+	var s=[];
+	var tec=[];
+
+	for(i=0;i<l;i++){
+		id=getL(t,offset);
+		offset+=4;
+
+		a=getW(t,offset);
+		offset+=2;
+		n=extStr(t.subarray(offset,offset+a),id);
+		offset+=a;
+		a=getW(t,offset);
+		offset+=2;
+		offset+=a;
+
+		a=getL(t,offset+2);
+		b=t[offset+6];
+		c=t[offset+7];
+
+		if(a!=-1) k=kind[a]+kind2[b]+c;
+		else k=kind2[b]+c;
+		tec.push({name:n,kind:k});
+
+		offset+=13;
+	}
+
+	start=getL(t,0x01E4);
+	l=getL(t,start);
+	offset=start+4;
+
+
+	s.push("<table class='sortable' id='sorter'><tr><th title=総数:",l,">ID</th>");
+	s.push("<th>name</th>");
+	s.push("<th>種別</th>");
+
+	s.push("<th>ゲージ</th>");
+	s.push("<th>範囲</th>");
+	s.push("<th>射程</th>");
+//	s.push("<th>p3</th>");
+//	s.push("<th>p4</th>");
+//	s.push("<th>p5</th>");
+//	s.push("<th>dump</th>");
+	s.push("<th>威力</th>");
+	s.push("<th>貫通力</th>");
+	s.push("<th>追加効果名</th>");
+	s.push("<th>追加効果（威力）</th>");
+	s.push("<th>追加効果補正（率）</th>");
+//	s.push("<th>p9</th>");
+//	s.push("<th>p10</th>");
+	s.push("<th>追加効果補正（時間）</th>");
+	s.push("<th>add</th>");
+
+//	s.push("<th>dump</th>");
+	s.push("</tr>");
+
+//E4 00		ゲージ:228-128=100
+//90 01		範囲:400
+//90 01		射程:400
+//32		?
+//64		?
+//00 00		?
+//80		貫通力:128-128=0
+//01		追加効果名
+//81		追加効果129-128=1
+//00 04		追加効果率1024-1024=0
+//00		追加効果時間:0
+//04 00 80 00 04 00 04
+
+
+	for(i=0;i<l;i++){
+		id=getL(t,offset);
+		offset+=4;
+
+		v=offset;
+		p[0]=getW(t,offset)-128;		//ゲージ		100
+		offset+=2;
+
+		p[1]=getW(t,offset)-400;		//範囲			400
+		offset+=2;
+
+		p[2]=getW(t,offset)-400;			//射程		400
+		offset+=2;
+
+//		p[3]=t[offset];
+//		offset++;
+
+//		p[4]=getM(t,offset);
+//		offset+=3;
+
+
+//		a=getM(t,offset);
+//		offset+=3;
+//		if(a>=65536) a=(a-65536)*-1;
+//		p[4]=a;
+
+//		p[5]=t[offset];
+//		offset++;
+
+//		p[3]=getL(t,offset);
+
+//		p[3]=t[offset];
+//		offset++;
+
+
+//		p[4]=t[offset];
+//		offset++;
+
+
+//		p[3]=getDump(t.subarray(offset,offset+4));		//50,100
+		offset+=4;
+
+
+//		p[3]=t[offset];
+//		offset++;
+
+//		p[4]=getW(t,offset);
+//		offset+=2;
+
+//		p[5]=t[offset];
+//		offset++;
+
+
+//		p[4]=t[offset];
+//		offset++;
+
+//		p[4]=t[offset];
+//		offset++;
+
+
+
+
+		p[3]=(t[offset]-128)*2;		//貫通力		//128
+		p[4]=t[offset]-128;			//貫通力		//128
+		offset++;
+
+
+
+		p[5]=sts[t[offset]];			//追加効果名
+//		p[8]=t[offset];			//追加効果名
+		offset++;
+
+
+		p[6]=t[offset]-128;				//追加効果
+		offset++;
+
+
+//		p[9]=t[offset];
+//		offset++;
+
+//		p[10]=t[offset];
+//		offset++;
+
+		p[7]=getW(t,offset)-1024;		//追加効果（率）
+		offset+=2;
+
+
+
+		a=t[offset];
+		if(a>=128) a-=256;
+		p[8]=a;					//追加効果補正（時間）
+
+//		p[11]=t[offset];
+		offset++;
+
+
+//		p[12]=getDump(t.subarray(offset,offset+23));
+//		p[12]=getDump(t.subarray(v,v+23));
+
+
+		p[9]=getDump(t.subarray(offset,offset+7));
+
+		offset+=7;
+
+		s.push("<tr><td>",id,"</td>");
+		s.push("<td>",tec[i].name,"</td>");
+		s.push("<td>",tec[i].kind,"</td>");
+
+		for(j=0;j<9;j++){
+			a=p[j].toString();
+			if(a!="0"&& a!=""){
+				if (j!=5 ){
+					if(p[j].toString().charAt(0)!="-") p[j]="+"+p[j];
+				}
+			}
+			s.push("<td>",p[j],"</td>");
+		}
+		s.push("<td><input onchange=add(this) type=checkbox></td>");
+		s.push("</tr>");
+//		s.push("<td style='text-align:left'>",p[i],"</td></tr>");
+
+	}
+
+	s.push("</table><p><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><a id=csvd>csvファイルとしてダウンロード</a>");
+	_g0("tex").innerHTML=s.join("");
+	_g0("csvd").setAttribute("href","data:application/octet-stream," + encodeURIComponent(s.join("")));
+
+	sorter=new table.sorter("sorter");
+	sorter.init("sorter",0);
+
+}
+
+function add(t){
+	var u=t;
+	t=t.parentNode.parentNode.childNodes;
+	var a,i;
+
+	if(u.checked){
+		if(techcnt==5) u.checked=false;
+		else {
+			for(i=0;i<5;i++){
+				if(techs[i]==0) {
+					techs[i]={name:t[1].textContent,kind:t[2].textContent,gauge:t[3].textContent,range:t[4].textContent,dist:t[5].textContent,power:t[6].textContent,needle:t[7].textContent,ap:t[9].textContent,ar:t[10].textContent,at:t[11].textContent};
+					techcnt++;
+					break;
+				}
+			}
+		}
+
+	}else{
+		for(i=0;i<5;i++){
+			if(techs[i].name==t[1].textContent) {
+				techs[i]=0;
+				techcnt--;
+				break;
+			}
+		}
+	}
+
+	var gauge=0;
+	var range=0;
+	var dist=0;
+	var power=0;
+	var needle=0;
+	var ap=0;
+	var ar=0;
+	var at=0;
+
+	for(i=1;i<5;i++){
+		if(techs[i]!=0){
+			gauge+=parseInt(techs[i].gauge);
+			range+=parseInt(techs[i].range);
+			dist+=parseInt(techs[i].dist);
+			power+=parseInt(techs[i].power);
+			needle+=parseInt(techs[i].needle);
+			ap+=parseInt(techs[i].ap);
+			ar+=parseInt(techs[i].ar);
+			at+=parseInt(techs[i].at);
+		}
+	}
+
+	console.log("ゲージ:"+gauge+",範囲:"+range+",射程:"+dist+",威力:"+power+",貫通力:"+needle+",追加効果:"+ap+",追加率:"+ar+",追加時間:"+at);
+
+
+}
+
+function ext(t,start,n){
+
+	var a,i,j,id,v;
+	var p=[];
+	var l=getL(t,start);
+	var offset=start+4;
+	var s=[];
+	var u=tbl[n];
+	var csv=[];
+
+	s.push("<table class='sortable' id='sorter'><tr><th title=総数:",l,">ID</th>");
+	for(i=0;v=u[i];i++){
+		if(v.n) s.push("<th>",v.n,"</th>")
+	}
+	s.push("</tr>");
+
+	for(i=0;i<l;i++){
+		id=getL(t,offset);
+		offset+=4;
+
+		for(j=0;v=u[j];j++){
+			if(v.t=="s"){
+				a=getW(t,offset);
+				offset+=2;
+				p[j]=extStr(t.subarray(offset,offset+a),id);
+				offset+=a;
+			}else if(v.t=="l"){
+				p[j]=getL(t,offset);
+				offset+=4;
+			}else if(v.t=="w"){
+				p[j]=getW(t,offset);
+				offset+=2;
+			}else if(v.t=="b"){
+				p[j]=t[offset];
+				offset++;
+			}else if(v.t=="u"){
+				offset+=v.o
+			}else if(v.t=="d"){
+				p[j]=getDump(t.subarray(offset,offset+v.o));
+				offset+=v.o;
+			}
+
+
+		}
+		s.push("<tr><td>",id,"</td>");
+//		csv.push('"');
+		csv.push(id);
+		for(j=0;v=u[j];j++){
+			if(v.n) {
+				if(v.t=="d") s.push("<td style='text-align:left'>",p[j],"</td>");
+				else s.push("<td>",p[j],"</td>");
+				csv.push(",",p[j]);
+
+			}
+
+		}
+		s.push("</tr>");
+
+//		csv.push('",');
+		csv.push(',');
+		csv.push("\n");
+
+	}
+
+
+	s.push("</table><p><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><a id=csvd>csvファイルとしてダウンロード</a>");
+	_g0("tex").innerHTML=s.join("");
+	_g0("csvd").setAttribute("href","data:application/octet-stream," + encodeURIComponent(csv.join("")));
+	sorter=new table.sorter("sorter");
+	sorter.init("sorter",0);
+
+}
+
+//name,disc extMap
+//name extSea
+
+
+function extEmotion(t,start){
+
+	var n=10;
+	var a,i,j,id,name,desc;
+	var p=[];
+	var l=getL(t,start);
+	var offset=start+4;
+	var s=[];
+
+	s.push("<table class='sortable' id='sorter'><tr><th>ID</th><th>name</th>");
+	for(j=0;j<n;j++){
+		s.push("<th>p",j,"</th>");
+	}
+	s.push("</tr>");
+
+	for(i=0;i<l;i++){
+		id=getL(t,offset);
+		offset+=4;
+
+		a=getW(t,offset);
+		offset+=2;
+
+		name=extStr(t.subarray(offset,offset+a),id);
+		offset+=a;
+
+
+		p[0]=getW(t,offset);
+		offset+=2;
+
+		p[1]=getW(t,offset);
+		offset+=2;
+
+		n=getW(t,offset);
+		offset+=2;
+//		console.log(n);
+		for(j=0;j<n;j++){
+			p[j]=getW(t,offset);
+			offset+=2;
+		}
+
+
+		s.push("<tr>");
+		s.push("<td>",id,"</td>");
+		s.push("<td>",name,"</td>");
+		for(j=0;j<n;j++){
+			s.push("<td>",p[j],"</td>");
+		}
+
+
+		s.push("</tr>");
+
+
+	}
+
+	s.push("</table>");
+	_g0("tex").innerHTML=s.join("");
+	sorter=new table.sorter("sorter");
+	sorter.init("sorter",0);
+
+}
+function setMenu(t){
+	var i,u;
+	s=[];
+	s.push(filename,":");
+	for(i=0;u=t[i];i++){
+		s.push("<button onclick=\"",u.comm,"\">　",u.name,"　</button>");
+	}
+	_g0("menu").innerHTML=s.join("");
+}
+
+
+function extStr(t,id){
+
+	var buf=[];
+	var out=[];
+	var x=[id&0xFF,(id>>8)&0xFF,(id>>16)&0xFF,(id>>24)&0xFF];
+	var str="";
+
+	for(i=0;i<t.length;i++){
+		buf.push((t[i]>>3)*7+(t[i]&7));
+	}
+
+	for(i=0;i<buf.length;i+=4){
+
+		a=(((buf[i]&0x3F)<<2) | ((buf[i+1]&0x30)>>4));
+		out.push(a);
+
+		a=(((buf[i+1]&0x0F)<<4) | ((buf[i+2]&0x3C)>>2));
+		out.push(a);
+
+		a=(((buf[i+2]&0x03)<<6) | (buf[i+3]&0x3F));
+		out.push(a);
+	}
+
+	for(i=0;i<out.length;i++){
+		out[i]^=x[i&3];
+	}
+
+	for(i=0;i<out.length;i+=2){
+		if(out[i+1]==0 && out[i]==0) break;
+		else if(out[i+1]==0 && out[i]==0x0A) str+="<br>";
+		else str+=String.fromCharCode(out[i+1]*0x100+out[i]);
+	}
+
+	return str;
+}
+
+
+function getDump(t){
+	var s=[];
+	var i,a;
+
+	var lc=0;
+	for(var i=0;i<t.length; i++){
+		if(lc==4) s.push("| ");
+		var a = "0"+t[i].toString(16);
+		s.push((a.substring(a.length-2, a.length)).toUpperCase()," ");
+		lc=(lc+1)&0x7;
+		if(lc==0) s.push("/br/");
+
+	}
+	return s.join("");
+}
+
+
+function view(){
+}
+
+function setread2(name){
+	_mm.style.visibility="hidden";
+	_out.innerHTML="";
+
+	var i,t;
+	var fe;
+	var header;
+
+	for(i=0;t=ftbl[i];i++){
+		if(t.n==name && typeof(t.h)!="undefined") {
+			header=t.h;
+			ae["/GV Online Eg"+t.h].file(function(file) {
+				var reader = new FileReader();
+				reader.onloadend = function(e) {ana(e.target.result,header);};
+				reader.readAsArrayBuffer(file);
+			},null);
+			break;
+		}
+	}
+	ae["/GV Online Eg"+name].file(function(file) {
+				var reader = new FileReader();
+				reader.onloadend = function(e) {ana(e.target.result,name);};
+				reader.readAsArrayBuffer(file);
+			},null);
+
+}
+
+function setread(files,i){
+//		alert(files[readcnt].name);
+
+	var reader = new FileReader();
+	var c;
+	reader.onload = function(evt){
+		if(ana(evt.target.result)) _out.innerHTML="対応していないファイルです";
+
+		readcnt++;
+		if(readcnt>=files.length) view() ;
+		else{
+//			_out.textContent=files[readcnt].name+"("+(i)+"/"+files.length+")";
+			 setread(files,readcnt);
+		}
+	}
+
+    reader.onerror = function() {
+      switch (reader.error.code) {
+      case FileError.NOT_FOUND_ERR:
+        alert("ファイルが見つかりません");
+        break;
+      case FileError.NOT_READABLE_ERR:
+        alert("ファイルを読み込めません");
+        break;
+      case FileError.SECURITY_ERR:
+        alert("セキュリティエラー");
+        break;
+      case FileError.ABORT_ERR:
+        alert("読み込みが中断されました");
+        break;
+      case FileError.ENCODING_ERR:
+        alert("不正なエンコーディングです");
+        break;
+      }
+	}
+	filename=files[i].name;
+	reader.readAsArrayBuffer(files[i]);
+
+}
+
+function readfile(files){
+	readcnt=0;
+	_out.innerHTML="";
+	setread(files,readcnt);
+
+}
+
+function onError(e) {
+	alert(e.code);
+}
+
+
+function toArray(list) {
+  return Array.prototype.slice.call(list || [], 0);
+}
+
+function readDirectory(dirEntry, callback) {
+  var dirReader = dirEntry.createReader();
+  var entries = [];
+
+  // Call the reader.readEntries() until no more results are returned.
+  var readEntries = function() {
+     dirReader.readEntries (function(results) {
+      if (!results.length) {
+	      callback(entries);
+      } else {
+        entries = entries.concat(toArray(results));
+        readEntries();
+      }
+    }, onError);
+  };
+
+  readEntries(); // Start reading dirs.
+}
+
+
+function getAllDir(dirEntry) {
+
+	readDirectory(dirEntry, function(entries) {
+	    if (!entries.length) {return;}
+	    entries.forEach(function(entry, i) {
+//			console.log(entry);
+//			if(entry.isFile) ae.push({name:entry.fullPath,fe:entry});
+			if(entry.isFile) ae[entry.fullPath]=entry;
+			else if(entry.isDirectory) getAllDir(entry);
+
+		});
+	});
+}
+
+function makemm(kind,parent){
+	var p=parent.getBoundingClientRect();
+	setxy(_g0("mm"),p.left,p.bottom);
+
+	var a,b,i,t;
+	var s=[];
+
+	if(kind=="music"){
+			if(typeof(ae["/GV Online Eg/0006/000001.bin"])=="undefined") return;
+			for(i=0;i<108;i++){
+				if(i%5==0) s.push("<span>　</span>");
+				a = "00000"+parseInt(i+1).toString();
+				a=["/0006/",(a.substring(a.length-6, a.length)),".bin"].join("");
+				b = "0"+parseInt(i+1).toString();
+				b=(b.substring(b.length-2, b.length));
+				s.push("<span class=menu onclick='setread2(\"",a,"\")'>",b,"</span><span>　</span>");
+				if(i%5==4) s.push("<br>");
+			}
+
+	}else{
+		for(i=0;t=ftbl[i];i++){
+			if(t.kind==kind && ( typeof(ae["/GV Online Eg"+t.n]) != "undefined")){
+				s.push("<div class=menu onclick='setread2(\"",t.n,"\")'>",t.d,"</div>");
+			}
+		}
+	}
+
+	_mm.innerHTML=s.join("");
+//	setread2(ae[0]);
+
+}
+
+
+
+function ok(){
+	console.log("OK");
+}
+
+function test(){
+	var t;
+	_d=document;
+	_out=_g0("tex");
+	_menu=_g0("menu");
+	_mm=_g0("mm");
+	ae={};
+	_mm.innerHTML="";
+	if(!window.File) alert("このブラウザでは利用できません。");
+	else {
+		document.documentElement.addEventListener('dragover', function(e) {e.preventDefault();}, false);
+		document.documentElement.addEventListener('drop', function(e) {
+			e.preventDefault();
+			ae={};
+			getAllDir(e.dataTransfer.items[0].webkitGetAsEntry());
+			_g0("mmm").style.display="inline";
+//			readfile(e.dataTransfer.files);
+		},false);
+	}
+
+
+}
+//<button onclick=gviewb(0,32,64,1,2048)>test</button>
+
+
+</script>
+
+
+</head>
+
+<body onload=test()>
+  <div id="container">
+  <div id="head">
+<a href="http://rostory.net/seyren/"><img src="http://i.imgur.com/0z3NkJU.png"></a>
+<a href="http://rostory.net/seyren/kr.html"><img src="http://i.imgur.com/dtVmu1P.png"></a>
+<a href="http://rostory.net/seyren/jp.html"><img src="http://i.imgur.com/rpDCJQ3.png"></a>
+<a href="http://rostory.net/seyren/eg.html"><img src="http://i.imgur.com/P1PDd74.png"></a>
+<a href="http://rostory.net/seyren/cn.html"><img src="http://i.imgur.com/u3WOvWy.png"></a>
+<a href="http://rostory.net/seyren/tw.html"><img src="http://i.imgur.com/8RquryB.png"></a>
+    </div>
+</div>
+
+<span id=mmm style='display:none'><span class=mm onmouseover="makemm('text',this);_mm.style.visibility='visible'" onmouseout="_mm.style.visibility='hidden'">텍스트</span> <span class=mm onmouseover="makemm('gfx',this);_mm.style.visibility='visible'" onmouseout="_mm.style.visibility='hidden'">이미지</span> <span  class=mm onmouseover="makemm('music',this);_mm.style.visibility='visible'" onmouseout="_mm.style.visibility='hidden'">배경음악</span></span><button onclick=usage()>사용법</button>
+
+<div id=mm onmouseover=this.style.visibility='visible' onmouseout=this.style.visibility='hidden' style="padding:4px;position:absolute;visibility:hidden;top:0;left:0;background-color:#eee;cursor:pointer;z-index:10000"></div>
+<div id=menu></div>
+<div id=tex style='padding:8px;font-family: courier; font-size:14px;'></div>
+</body></html>

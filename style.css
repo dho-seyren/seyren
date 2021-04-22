@@ -1,0 +1,55 @@
+* {margin:0; padding:0}
+body {font-size:12px;background-color:#00183E;}
+img { vertical-align:middle; }
+a {
+text-decoration: none;
+font-size:25px;
+vertical-align:top;
+}
+a:link {text-decoration: none; color: #fff;}
+a:visited {text-decoration: none; color: #fff;}
+a:active {text-decoration: none; color: #fff;}
+a:hover {text-decoration: none; color: #fff;}
+select {font-size:10px;}
+#wrapper {width:825px; margin:50px auto}
+.sortable {border:0px solid #ccc; border-bottom:none}
+.sortable th {font-size:12px;padding:2px 3px 0px 3px; background:#666; color:#fff; text-align:center; color:#ccc}
+.sortable .fz {font-size:12px;padding:2px 3px 0px 3px; background:#444; color:#fff; text-align:center; color:#ccc}
+.sortable td {text-align:center;font-size:12px;padding:2px 4px 4px; background:#fff; border:0px}
+.sortable .head {background:#505050 url(images/sort.gif) 6px center no-repeat; cursor:pointer; padding-left:18px}
+.sortable .desc {background:#0 url(images/desc.gif) 6px center no-repeat; cursor:pointer; padding-left:18px}
+.sortable .asc {background:#222 url(images/asc.gif) 6px  center no-repeat; cursor:pointer; padding-left:18px}
+.sortable .head:hover, .sortable .desc:hover, .sortable .asc:hover {color:#fff}
+.sortable .even td {background:#eeeeee}
+.sortable .odd td {background:#ccdddd}
+.sortable .odd2 td {background:#ddccdd}
+.sortable .odd3 td {background:#ccccdd}
+.desc {cursor:hand;font-size:12px;color:#fff;padding-right:2px;padding-left:2px;margin-top:0;margin-bottom:0;background:#808080;border:0px}
+.asc {cursor:hand;font-size:12px;color:#fff;padding-right:2px;padding-left:2px;margin-top:0;margin-bottom:0;background:#222;border:0px}
+.ti{border:solid 2px transparent;border-top-width:0px;width:16px;height:16px;vertical-align:middle}
+.tp{border:solid 2px transparent;border-top-width:0px;width:24px;height:24px;vertical-align:middle}
+.cv{position:absolute;background:transparent;top:0;left:0;margin-top:160px; margin-bottom:50px;}
+.menu{background:transparent;color:#222}
+.menu:hover{background:#222;color:#fff}
+.mm{padding:2px;background:#fff}
+
+#container {
+  width: 100%;
+}
+#header {
+  float: left;
+  width: 100%;
+  height: 230px;
+  text-align:center;
+}
+#head {
+  float: left;  
+  width: 100%;
+  height: 133px;  
+}
+#content {
+  float: left;  
+  text-align:center;
+  width: 100%;
+  height:50px;
+}
